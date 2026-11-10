@@ -1,0 +1,63 @@
+from __future__ import annotations
+
+import math
+import re
+from dataclasses import dataclass
+from typing import List, Optional, Sequence, Tuple
+
+import numpy as np
+import torch
+import torch.nn.functional as F
+from scipy.stats import entropy as scipy_entropy
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+# dataclass 정의
+@dataclass(frozen=True)
+class ChunkScore:
+    chunk_index: int
+    text: str
+    token_count: int
+    mean_log_prob: float
+    perplexity: float
+    token_entropy: float
+    bullet_ratio: float
+    monotony_score: float
+    ai_probability: float
+
+@dataclass(frozen=True)
+class DetectionResult:
+    overall_ai_probability: float
+    weighted_ai_probability: float
+    chunk_scores: List[ChunkScore]
+    token_count: int
+    word_count: int
+    ai_word_ratio: float
+
+# detection 인식부
+class GPTKillerDetector:
+    def __init__(
+            self,
+            model_name: str = "gpt2",
+            device: Optional[str] = None,
+            chunk_size: int = 400,
+            chunk_overlap: int = 50,
+            ai_threshold: float = 0.65,
+    ) -> None:
+        if chunk_overlap >= chunk_size:
+            raise ValueError("chunk_overlap must be smaller than chunk_size")
+
+        self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
+        self.ai_threshold = ai_threshold
+
+        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModelForCausalLM.from_pretrained(model_name).to(self.device)
+        self.model.eval()
+
+        # 패드 토큰 존재 여부 (GPT-2 lacks one by default)
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+
+# 공개된 API
+def detect
